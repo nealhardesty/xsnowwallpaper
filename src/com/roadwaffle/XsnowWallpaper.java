@@ -42,7 +42,7 @@ public class XsnowWallpaper extends WallpaperService {
     private static final float WIND_MAXSPEED = 20.0f;
 
     // chance that if no santa currently, santa will appear (1 in SANTA_CHANCE per frame)
-    private static final int SANTA_CHANCE = 100;
+    private static final int SANTA_CHANCE = 200;
 
     // Should we be drawing?
     private boolean visible;
@@ -295,21 +295,23 @@ public class XsnowWallpaper extends WallpaperService {
 
     private void moveSanta() {
       if (santa.running) {
-        santa.left += 6.0f;
+        santa.left += 5.0f;
 
-        santa.frame += 1;
-        if(santa.frame > 3)
-          santa.frame=0;
+        if (santa.left % 15.0f == 0) {
+          santa.frame += 1;
+          if (santa.frame > 3)
+            santa.frame = 0;
+        }
 
-        if (santa.left > this.width + 100) {
+        if (santa.left > this.width + 300) {
           santa.running = false;
         }
       } else {
         if (rand.nextInt(SANTA_CHANCE) == 0) {
           santa.running = true;
-          santa.left = -100f;
+          santa.left = -300f;
           santa.top = rand.nextInt(100) + 30;
-          santa.frame = (short)rand.nextInt(4);
+          santa.frame = (short) rand.nextInt(4);
         }
       }
     }

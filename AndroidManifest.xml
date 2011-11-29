@@ -20,7 +20,6 @@
              <meta-data android:name="android.service.wallpaper" android:resource="@xml/xsnow" />
         </service>
       <activity android:label="@string/servicename" android:name=".XsnowPreferencesActivity"
-                android:theme="@android:style/Theme.Light.WallpaperSettings"
                 android:exported="true">
       </activity>
     </application>

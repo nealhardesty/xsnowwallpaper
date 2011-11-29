@@ -2,6 +2,7 @@ package com.roadwaffle;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.res.Resources;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -40,6 +41,9 @@ public class XsnowWallpaper extends WallpaperService {
     // MAX horizontal windspeed in either direction
     private static final float WIND_MAXSPEED = 20.0f;
 
+    // chance that if no santa currently, santa will appear (1 in SANTA_CHANCE per frame)
+    private static final int SANTA_CHANCE = 100;
+
     // Should we be drawing?
     private boolean visible;
 
@@ -61,14 +65,20 @@ public class XsnowWallpaper extends WallpaperService {
     private int numSnowflakes = 100;
     private float vSpeed = 12;
     private boolean wind = true;
+    private short santaType = -1;
+
 
     // Images loaded from apk
     private Drawable tannenbaumImage;
     private Drawable[] snowflakeImages;
+    // first dimension: 0=reg, 1=reg rudolph, 2=medium, 3=medium rudolph, 4=big, 5=big rudolph
+    // second dimension: 0-3 images
+    private Drawable[][] santaImages;
 
-    // Holders for the tree and snowflake objects
+    // Holders for the tree, santa and snowflake objects
     private Tree[] trees;
     private Snowflake[] snowflakes;
+    private Santa santa;
 
     private Random rand = new Random();
 
@@ -100,19 +110,74 @@ public class XsnowWallpaper extends WallpaperService {
       float hspeed;
     }
 
+    private class Santa {
+      Santa(float top, float left, Drawable[] models) {
+        this.top = top;
+        this.left = left;
+        this.models = models;
+        this.running = false;
+        this.frame = 0;
+      }
+
+      float top;
+      float left;
+
+      short frame;
+
+      boolean running;
+
+      Drawable[] models;
+    }
+
     XsnowEngine() {
       //Log.d("Xsnow", "_ctor");
       Context context = getApplicationContext();
 
-      tannenbaumImage = context.getResources().getDrawable(R.drawable.tannenbaum);
+      Resources r = context.getResources();
+
+      tannenbaumImage = r.getDrawable(R.drawable.tannenbaum);
+
       snowflakeImages = new Drawable[7];
-      snowflakeImages[0] = context.getResources().getDrawable(R.drawable.snow00);
-      snowflakeImages[1] = context.getResources().getDrawable(R.drawable.snow01);
-      snowflakeImages[2] = context.getResources().getDrawable(R.drawable.snow02);
-      snowflakeImages[3] = context.getResources().getDrawable(R.drawable.snow03);
-      snowflakeImages[4] = context.getResources().getDrawable(R.drawable.snow04);
-      snowflakeImages[5] = context.getResources().getDrawable(R.drawable.snow05);
-      snowflakeImages[6] = context.getResources().getDrawable(R.drawable.snow06);
+
+      snowflakeImages[0] = r.getDrawable(R.drawable.snow00);
+      snowflakeImages[1] = r.getDrawable(R.drawable.snow01);
+      snowflakeImages[2] = r.getDrawable(R.drawable.snow02);
+      snowflakeImages[3] = r.getDrawable(R.drawable.snow03);
+      snowflakeImages[4] = r.getDrawable(R.drawable.snow04);
+      snowflakeImages[5] = r.getDrawable(R.drawable.snow05);
+      snowflakeImages[6] = r.getDrawable(R.drawable.snow06);
+
+      santaImages = new Drawable[6][4];
+
+      santaImages[0][0] = r.getDrawable(R.drawable.regularsanta1);
+      santaImages[0][1] = r.getDrawable(R.drawable.regularsanta2);
+      santaImages[0][2] = r.getDrawable(R.drawable.regularsanta3);
+      santaImages[0][3] = r.getDrawable(R.drawable.regularsanta4);
+
+      santaImages[1][0] = r.getDrawable(R.drawable.regularsantarudolf1);
+      santaImages[1][1] = r.getDrawable(R.drawable.regularsantarudolf2);
+      santaImages[1][2] = r.getDrawable(R.drawable.regularsantarudolf3);
+      santaImages[1][3] = r.getDrawable(R.drawable.regularsantarudolf4);
+
+      santaImages[2][0] = r.getDrawable(R.drawable.mediumsanta1);
+      santaImages[2][1] = r.getDrawable(R.drawable.mediumsanta2);
+      santaImages[2][2] = r.getDrawable(R.drawable.mediumsanta3);
+      santaImages[2][3] = r.getDrawable(R.drawable.mediumsanta4);
+
+      santaImages[3][0] = r.getDrawable(R.drawable.mediumsantarudolf1);
+      santaImages[3][1] = r.getDrawable(R.drawable.mediumsantarudolf2);
+      santaImages[3][2] = r.getDrawable(R.drawable.mediumsantarudolf3);
+      santaImages[3][3] = r.getDrawable(R.drawable.mediumsantarudolf4);
+
+      santaImages[4][0] = r.getDrawable(R.drawable.bigsanta1);
+      santaImages[4][1] = r.getDrawable(R.drawable.bigsanta2);
+      santaImages[4][2] = r.getDrawable(R.drawable.bigsanta3);
+      santaImages[4][3] = r.getDrawable(R.drawable.bigsanta4);
+
+      santaImages[5][0] = r.getDrawable(R.drawable.bigsantarudolf1);
+      santaImages[5][1] = r.getDrawable(R.drawable.bigsantarudolf2);
+      santaImages[5][2] = r.getDrawable(R.drawable.bigsantarudolf3);
+      santaImages[5][3] = r.getDrawable(R.drawable.bigsantarudolf4);
     }
 
     private void reinit() {
@@ -152,6 +217,22 @@ public class XsnowWallpaper extends WallpaperService {
         numTrees = Integer.valueOf(prefs.getString("numtrees", "20"));
         vSpeed = Float.valueOf(prefs.getString("vspeed", "5"));
         wind = prefs.getBoolean("wind", true);
+
+        String santaKey = prefs.getString("santatype", "none");
+        boolean rudolph = prefs.getBoolean("rudolph", true);
+        santaType = -1;
+        if (santaKey.equals("regular"))
+          santaType = (short) (rudolph ? 1 : 0);
+        else if (santaKey.equals("medium"))
+          santaType = (short) (rudolph ? 3 : 2);
+        else if (santaKey.equals("big"))
+          santaType = (short) (rudolph ? 5 : 4);
+
+        if (santaType >= 0)
+          santa = new Santa(100, -100, santaImages[santaType]);
+        else
+          santa = null;
+
       } catch (NumberFormatException nfe) {
         Toast.makeText(getApplicationContext(), "Invalid number specified " + nfe.getMessage(), 1000);
         Log.d("Xsnow", "reinitPrefs " + nfe);
@@ -159,6 +240,8 @@ public class XsnowWallpaper extends WallpaperService {
         numTrees = 20;
         wind = true;
         vSpeed = 5;
+        santa = null;
+        santaType = -1;
       }
     }
 
@@ -180,6 +263,15 @@ public class XsnowWallpaper extends WallpaperService {
       try {
         c = holder.lockCanvas();
         if (c != null) {
+          c.drawColor(Color.BLACK);
+
+          drawTrees(c);
+
+          if (santa != null) {
+            drawSanta(c);
+            moveSanta();
+          }
+
           drawFlakes(c);
           moveFlakes();
         }
@@ -194,15 +286,47 @@ public class XsnowWallpaper extends WallpaperService {
         handler.postDelayed(drawFrameRunnable, SLEEP_TIME);
     }
 
-    private void drawFlakes(Canvas c) {
+    private void drawSanta(Canvas c) {
       c.save();
-      c.drawColor(Color.BLACK);
-      //c.translate(xoffset, 0);
+      if (santa != null && santa.running)
+        c.drawBitmap(((BitmapDrawable) santa.models[santa.frame]).getBitmap(), santa.left, santa.top, paint);
+      c.restore();
+    }
+
+    private void moveSanta() {
+      if (santa.running) {
+        santa.left += 6.0f;
+
+        santa.frame += 1;
+        if(santa.frame > 3)
+          santa.frame=0;
+
+        if (santa.left > this.width + 100) {
+          santa.running = false;
+        }
+      } else {
+        if (rand.nextInt(SANTA_CHANCE) == 0) {
+          santa.running = true;
+          santa.left = -100f;
+          santa.top = rand.nextInt(100) + 30;
+          santa.frame = (short)rand.nextInt(4);
+        }
+      }
+    }
+
+    private void drawTrees(Canvas c) {
+      c.save();
       for (int i = 0; i < numTrees; i++) {
         Tree t = trees[i];
         float offset = (xoffset * 0.25f);
         c.drawBitmap(((BitmapDrawable) t.model).getBitmap(), t.left + offset, t.top, paint);
       }
+      c.restore();
+    }
+
+    private void drawFlakes(Canvas c) {
+      c.save();
+      //c.translate(xoffset, 0);
 
       for (int i = 0; i < numSnowflakes; i++) {
         Snowflake s = snowflakes[i];
@@ -213,16 +337,16 @@ public class XsnowWallpaper extends WallpaperService {
 
     private void moveFlakes() {
       if (wind) {
-        if(targetWind == 0.0f) {
-          if((rand.nextInt() % WIND_CHANGE_CHANCE)==0)
-            targetWind= (rand.nextFloat() * (WIND_MAXSPEED * 2)) - WIND_MAXSPEED;
+        if (targetWind == 0.0f) {
+          if ((rand.nextInt() % WIND_CHANGE_CHANCE) == 0)
+            targetWind = (rand.nextFloat() * (WIND_MAXSPEED * 2)) - WIND_MAXSPEED;
         } else {
-          if((rand.nextInt() % WIND_RESET_CHANCE)==0)
-            targetWind=0.0f;
+          if ((rand.nextInt() % WIND_RESET_CHANCE) == 0)
+            targetWind = 0.0f;
         }
 
         float difference = (currentWind - targetWind);
-        float step=Math.abs(targetWind) / 50;
+        float step = Math.abs(targetWind) / 50;
         if (difference > 1) {
           // target is less than current by at least one ... subtract from current
           //currentWind -= 0.025f;

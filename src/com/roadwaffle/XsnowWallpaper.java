@@ -12,6 +12,7 @@ import android.preference.PreferenceManager;
 import android.service.wallpaper.WallpaperService;
 import android.util.Log;
 import android.view.SurfaceHolder;
+import android.widget.Toast;
 
 import java.util.Random;
 
@@ -27,21 +28,45 @@ public class XsnowWallpaper extends WallpaperService {
 
   class XsnowEngine extends Engine implements SharedPreferences.OnSharedPreferenceChangeListener {
 
+    // Time to sleep/post between frames
+    private static final int SLEEP_TIME = 15;
+
+    // chance that the wind will change this frame 1 in WIND_CHANGE_CHANCE chance
+    private static final int WIND_CHANGE_CHANCE = 100;
+
+    // change that the wind will die down this frame 1 in WIND_RESET_CHANCE chance
+    private static final int WIND_RESET_CHANCE = 25;
+
+    // MAX horizontal windspeed in either direction
+    private static final float WIND_MAXSPEED = 20.0f;
+
+    // Should we be drawing?
     private boolean visible;
+
+    // Cache the paint object
     private Paint paint = new Paint();
 
+    // current screen height/width
     private int height;
     private int width;
 
-    private int xoffset=0;
+    // current screen offset
+    private int xoffset = 0;
 
+    private float currentWind = 0.0f;
+    private float targetWind = 0.0f;
+
+    // Configuration/prefs values
     private int numTrees = 10;
     private int numSnowflakes = 100;
-    private float vSpeed = 15;
+    private float vSpeed = 12;
+    private boolean wind = true;
 
+    // Images loaded from apk
     private Drawable tannenbaumImage;
     private Drawable[] snowflakeImages;
 
+    // Holders for the tree and snowflake objects
     private Tree[] trees;
     private Snowflake[] snowflakes;
 
@@ -88,7 +113,6 @@ public class XsnowWallpaper extends WallpaperService {
       snowflakeImages[4] = context.getResources().getDrawable(R.drawable.snow04);
       snowflakeImages[5] = context.getResources().getDrawable(R.drawable.snow05);
       snowflakeImages[6] = context.getResources().getDrawable(R.drawable.snow06);
-
     }
 
     private void reinit() {
@@ -99,22 +123,25 @@ public class XsnowWallpaper extends WallpaperService {
       trees = new Tree[numTrees];
       snowflakes = new Snowflake[numSnowflakes];
 
-      // Note to self:  top/left of the screen is (0,0) go figure
+      // Note to self:  top/left of the screen is (0,0)... go figure
 
       for (int i = 0; i < numTrees; i++) {
         float top = rand.nextInt(height - 20) + 10;
-        float left = rand.nextInt(width - 20) + 10;
+        float left = rand.nextInt(width - 100) + 50;
         trees[i] = new Tree(top, left, tannenbaumImage);
       }
 
       for (int i = 0; i < numSnowflakes; i++) {
         float left = rand.nextFloat() * width;
         float top = rand.nextFloat() * height;
-        float vspeed = (rand.nextFloat() * (0.5f * vSpeed)) + (0.75f * vSpeed);
-        float hspeed = (rand.nextFloat() * 5f) - 2.5f;
+        float vspeed = (rand.nextFloat() * (0.75f * vSpeed)) + (0.75f * vSpeed);
+        float hspeed = (rand.nextFloat() * (0.5f * vSpeed)) - (0.25f * vSpeed);
 
         snowflakes[i] = new Snowflake(top, left, vspeed, hspeed, snowflakeImages[rand.nextInt(7)]);
       }
+
+      currentWind = 0.0f;
+      targetWind = 0.0f;
     }
 
     private void reinitPrefs() {
@@ -123,11 +150,15 @@ public class XsnowWallpaper extends WallpaperService {
       try {
         numSnowflakes = Integer.valueOf(prefs.getString("numflakes", "100"));
         numTrees = Integer.valueOf(prefs.getString("numtrees", "20"));
-        vSpeed = Float.valueOf(prefs.getString("vspeed", "10"));
+        vSpeed = Float.valueOf(prefs.getString("vspeed", "5"));
+        wind = prefs.getBoolean("wind", true);
       } catch (NumberFormatException nfe) {
+        Toast.makeText(getApplicationContext(), "Invalid number specified " + nfe.getMessage(), 1000);
         Log.d("Xsnow", "reinitPrefs " + nfe);
-        numSnowflakes=100;
-        numTrees=20;
+        numSnowflakes = 100;
+        numTrees = 20;
+        wind = true;
+        vSpeed = 5;
       }
     }
 
@@ -160,16 +191,17 @@ public class XsnowWallpaper extends WallpaperService {
       // remove and reschedule our callback
       handler.removeCallbacks(drawFrameRunnable);
       if (visible)
-        handler.postDelayed(drawFrameRunnable, 10);
+        handler.postDelayed(drawFrameRunnable, SLEEP_TIME);
     }
 
     private void drawFlakes(Canvas c) {
       c.save();
       c.drawColor(Color.BLACK);
-      c.translate(xoffset, 0);
+      //c.translate(xoffset, 0);
       for (int i = 0; i < numTrees; i++) {
         Tree t = trees[i];
-        c.drawBitmap(((BitmapDrawable) t.model).getBitmap(), t.left, t.top, paint);
+        float offset = (xoffset * 0.25f);
+        c.drawBitmap(((BitmapDrawable) t.model).getBitmap(), t.left + offset, t.top, paint);
       }
 
       for (int i = 0; i < numSnowflakes; i++) {
@@ -180,20 +212,43 @@ public class XsnowWallpaper extends WallpaperService {
     }
 
     private void moveFlakes() {
+      if (wind) {
+        if(targetWind == 0.0f) {
+          if((rand.nextInt() % WIND_CHANGE_CHANCE)==0)
+            targetWind= (rand.nextFloat() * (WIND_MAXSPEED * 2)) - WIND_MAXSPEED;
+        } else {
+          if((rand.nextInt() % WIND_RESET_CHANCE)==0)
+            targetWind=0.0f;
+        }
+
+        float difference = (currentWind - targetWind);
+        float step=Math.abs(targetWind) / 50;
+        if (difference > 1) {
+          // target is less than current by at least one ... subtract from current
+          //currentWind -= 0.025f;
+          currentWind -= step;
+        } else if (difference < -1) {
+          // target is greater than current by at least one ... add to current
+          //currentWind += 0.025f;
+          currentWind += step;
+        }
+
+      }
+
       for (int i = 0; i < numSnowflakes; i++) {
         Snowflake s = snowflakes[i];
         s.top = s.top + s.vspeed;
-        s.left = s.left + s.hspeed;
+        s.left = s.left + s.hspeed + currentWind;
 
         if (s.top > height) {
           s.top = 0;
           s.left = rand.nextFloat() * width;
         }
 
-        if (s.left < -1 * (width/2))
-          s.left = width + (width/2);
-        if (s.left > width + (width/2))
-          s.left = -1 * (width/2);
+        if (s.left < -5)
+          s.left = width + 5;
+        if (s.left > width + 5)
+          s.left = -5;
 
         //if (i == 0)
         //  Log.d("Xsnow", "moving top=" + s.top + " left=" + s.left);
@@ -203,9 +258,9 @@ public class XsnowWallpaper extends WallpaperService {
     @Override
     public void onOffsetsChanged(float xOffset, float yOffset, float xOffsetStep, float yOffsetStep, int xPixelOffset, int yPixelOffset) {
       super.onOffsetsChanged(xOffset, yOffset, xOffsetStep, yOffsetStep, xPixelOffset, yPixelOffset);
-      Log.d("Xsnow", "onOffsetsChanged xOffset="+xOffset +" yOffset=" + yOffset + " xOffsetStep=" + xOffsetStep + " yOffsetStep=" + yOffsetStep + " xPixelOffset=" + xPixelOffset + " yPixelOffset="+ yPixelOffset);
+      Log.d("Xsnow", "onOffsetsChanged xOffset=" + xOffset + " yOffset=" + yOffset + " xOffsetStep=" + xOffsetStep + " yOffsetStep=" + yOffsetStep + " xPixelOffset=" + xPixelOffset + " yPixelOffset=" + yPixelOffset);
 
-      //this.xoffset=xPixelOffset;
+      this.xoffset = xPixelOffset;
     }
 
     @Override

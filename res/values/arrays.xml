@@ -1,0 +1,1 @@
+<resources>  <string-array name="santatypekeys">    <item>No Santa</item>    <item>Regular Santa</item>    <item>Medium Santa</item>    <item>Big Santa</item>  </string-array>  <string-array name="santatypevalues">    <item>none</item>    <item>regular</item>    <item>medium</item>    <item>big</item>  </string-array></resources>

@@ -1,0 +1,1 @@
+package com.roadwaffle.android.xsnowwallpaper;import android.os.Bundle;import android.preference.PreferenceActivity;/** * Preferences activity */public class XsnowPreferencesActivity extends PreferenceActivity {  public void onCreate(Bundle savedInstanceState) {    super.onCreate(savedInstanceState);    addPreferencesFromResource(R.xml.prefs);  }}

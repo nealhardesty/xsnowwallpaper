@@ -215,7 +215,7 @@ public class XsnowWallpaper extends WallpaperService {
       try {
         numSnowflakes = Integer.valueOf(prefs.getString("numflakes", "100"));
         numTrees = Integer.valueOf(prefs.getString("numtrees", "20"));
-        vSpeed = Float.valueOf(prefs.getString("vspeed", "5"));
+        vSpeed = Float.valueOf(prefs.getString("vspeed", "6"));
         wind = prefs.getBoolean("wind", true);
 
         String santaKey = prefs.getString("santatype", "none");
@@ -234,7 +234,7 @@ public class XsnowWallpaper extends WallpaperService {
           santa = null;
 
       } catch (NumberFormatException nfe) {
-        Toast.makeText(getApplicationContext(), "Invalid number specified " + nfe.getMessage(), 1000);
+        Toast.makeText(getApplicationContext(), "Invalid number specified " + nfe.getMessage(), Toast.LENGTH_SHORT).show();
         Log.d("Xsnow", "reinitPrefs " + nfe);
         numSnowflakes = 100;
         numTrees = 20;
@@ -384,7 +384,7 @@ public class XsnowWallpaper extends WallpaperService {
     @Override
     public void onOffsetsChanged(float xOffset, float yOffset, float xOffsetStep, float yOffsetStep, int xPixelOffset, int yPixelOffset) {
       super.onOffsetsChanged(xOffset, yOffset, xOffsetStep, yOffsetStep, xPixelOffset, yPixelOffset);
-      Log.d("Xsnow", "onOffsetsChanged xOffset=" + xOffset + " yOffset=" + yOffset + " xOffsetStep=" + xOffsetStep + " yOffsetStep=" + yOffsetStep + " xPixelOffset=" + xPixelOffset + " yPixelOffset=" + yPixelOffset);
+      //Log.d("Xsnow", "onOffsetsChanged xOffset=" + xOffset + " yOffset=" + yOffset + " xOffsetStep=" + xOffsetStep + " yOffsetStep=" + yOffsetStep + " xPixelOffset=" + xPixelOffset + " yPixelOffset=" + yPixelOffset);
 
       this.xoffset = xPixelOffset;
     }

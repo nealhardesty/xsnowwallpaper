@@ -4,12 +4,13 @@
     android:versionCode="1"
     android:versionName="1.0" >
 
-    <uses-sdk android:minSdkVersion="7" />
+    <uses-sdk android:minSdkVersion="7" android:targetSdkVersion="17"/>
     <uses-feature android:name="android.software.live_wallpaper"/>
 
     <application
         android:icon="@drawable/tannenbaum"
-        android:label="@string/servicename" >
+        android:label="@string/servicename" 
+        android:allowBackup="false">
         <service
             android:label="@string/servicename"
             android:name=".XsnowWallpaper"
